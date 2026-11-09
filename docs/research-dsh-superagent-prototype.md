@@ -13,12 +13,12 @@
 对本团队最有价值的不是它的功能清单，而是它的**设计取舍方式**：
 
 1. **把"人类注意力"当作唯一预算单位**。每一条消息、每一个面板元素、每一段文档都要先证明自己值得占用注意力，否则删除。
-2. **用一套刻意收窄的领域模型（12 个概念）承载全部语义**，并公开列出 **17 条"被拒绝的概念"及其理由**——这是本仓库最有工程价值的部分。
+2. **用一套刻意收窄的领域模型（11 个核心概念）承载全部语义**，并公开列出 **12 条"被拒绝的概念"及其理由**——这是本仓库最有工程价值的部分。
 3. **授权与上下文分离**：Subscribed Thread 上的消息一律绕过准入（gate）进入工单上下文，但**不授予任何新权限**；权限只来自不可变的 Mandate，并在恢复前重新校验。
 4. **副作用先落库再执行**（Effects 队列 + Outbox 回执），使"决定"与"做"解耦，崩溃后可恢复、重启不丢单。
 5. **文档即架构**：9 篇编号文档按序阅读即可建立完整心智模型，`tests/docs.spec.ts` 用测试强制"文档表必须列全每个模块与测试"。
 
-**风险提示**：仓库 README 明确声明这是"仅供参考的研究原型，非 DeepSeek 官方产品"，且运行时依赖 30 余个 `@deepseek-ai/dsh-*` alpha 内部包，**当前不具备独立部署条件**。
+**风险提示**：仓库 README 明确声明这是"仅供参考的研究原型，非 DeepSeek 官方产品"，且运行需要 23 个 peer 依赖（其中 21 个是 `@deepseek-ai/dsh-*` alpha 内部包），**当前不具备脱离 DeepSeek 内部环境独立部署的条件**。
 
 ---
 
@@ -41,8 +41,8 @@
 | Issue / PR | 仓库**已关闭** Issue 与 PR 功能（`has_issues: false`，`has_pull_requests: false`） |
 | 语言构成 | TypeScript 2,048,810 B · CSS 40,558 B · Python 12,223 B |
 | 声明运行时依赖 | **仅 2 个**：`proper-lockfile@4.1.2`、`zod@4.4.3` |
-| Peer 依赖 | 30+ 个 `@deepseek-ai/dsh-*` / `cordis` 包，全部为 `0.2.1-alpha.2` 等 alpha 版本 |
-| 引擎约束 | Node `^22.19.0 \|\| >=24.0.0`；DSH `^0.2.1-alpha.2` |
+| Peer 依赖 | **23 个**：21 个 `@deepseek-ai/dsh-*`，加 `@deepseek-ai/cordis` 与 `@deepseek-ai/schemastery`；除 cordis/schemastery 精确锁定外，均为 `0.2.1-alpha.2` |
+| 引擎约束 | Node `^22.19.0` 或 `>=24.0.0`；DSH `^0.2.1-alpha.2` |
 | 工具链 | pnpm 11.7.0 · TypeScript 6.0.3 · tsdown 0.22.14 · vitest 4.1.8 · React 18.3.1 · jsdom 29.1.1 |
 
 ### 1.2 代码规模（按 `git show HEAD:<path>` 逐文件统计，行数为文本行）
@@ -115,7 +115,7 @@
 
 ---
 
-## 3. 领域模型：12 个概念撑起整个系统
+## 3. 领域模型：11 个核心概念撑起整个系统
 
 `docs/001-domain.md` 是全仓最重要的一篇文档。它给出的工作流是：
 
@@ -132,7 +132,7 @@ flowchart LR
 
 **关键区分**：一条消息如果通过订阅扇出抵达了某个工单，它就归该工单所有（走 Executor 判断），**不再进入 Eval**；其他消息才进入 Eval 判断是否开新工作。
 
-### 3.1 核心概念表（原文节选 + 解读）
+### 3.1 核心概念表（原文 11 行核心概念表 + 术语表另列的 Report）
 
 | 概念 | 定义 | 它守住的关键规则 | 为什么存在 |
 | --- | --- | --- | --- |
@@ -147,7 +147,7 @@ flowchart LR
 | **Ticket**（工单） | 一份被授权的工作单元 | 只有 Eval 能创建；引用自己的 Mandate；持有 Channels 与 Inputs；**自己定义状态，不跟随执行器** | 拥有执行与其汇报 |
 | **Assignment**（派工） | Ticket 与某个执行器实例的绑定 | 一个 Ticket 前后可有多个；**独立于 Ticket 走 pending → running → ended**；只有最终报告才能在执行器侧结束 Ticket | 执行器在领域之外，但"谁在执行"必须在领域之内 |
 | **Subscription**（订阅） | Ticket 与 Thread 的多对多关系，由 Thread 持有 | 命中的 Trigger 扇出给每个存活订阅工单，**不检查发送者**；人经此抵达的消息**不走 Eval**；已结束的 Ticket **保留订阅**（含已关闭/已合并的 PR），人的消息可在同一 Mandate 下恢复它，**但机器人与 CI 不会唤醒它** | 后续讨论无需再次 @ 智能体就能到达执行器 |
-| **Report**（报告） | Assignment 向 Ticket 汇报的状态 | progress / waiting / ready / blocked / failed / dropped | —— |
+| **Report**（报告）〔原文术语表另列〕 | Assignment 向 Ticket 汇报的状态 | progress / waiting / ready / blocked / failed / dropped | —— |
 
 ### 3.2 被拒绝的概念（本报告认为最有价值的部分）
 
@@ -291,7 +291,7 @@ flowchart LR
 
 ```sh
 git -C /home/me/src/widgets fetch --no-tags "https://github.com/$DSH_SUPERAGENT_GITHUB_REPOSITORY.git" \
-  "${DSH_SUPERAGENT_PR_HEAD:-HEAD}:refs/dsh-superagent/$DSH_SUPERAGENT_TICKET" &&
+  "${DSH_SUPERAGENT_GITHUB_PR_HEAD:-HEAD}:refs/dsh-superagent/$DSH_SUPERAGENT_TICKET" &&
 git -C /home/me/src/widgets worktree add -b "agent/$DSH_SUPERAGENT_NAME" \
   "$DSH_SUPERAGENT_DIR" "refs/dsh-superagent/$DSH_SUPERAGENT_TICKET"
 ```
@@ -503,19 +503,21 @@ Engine
 
 ### 9.3 持久化：单个 SQLite 文件
 
-`<stateDir>/orchestrator.sqlite`，只有 Store 打开它；Runtime 在打开前获取目录锁，防止第二个进程迁移或写入同一状态目录。
+`<stateDir>/orchestrator.sqlite`，只有 Store 打开它；Runtime 在打开前获取目录锁，防止第二个进程迁移或写入同一状态目录。源码层面它用 Node 内置的 `node:sqlite`（`DatabaseSync`），打开时设置 `journal_mode=WAL` 与 `synchronous=FULL`，并把数据库文件权限置为 `0600`。
 
 | 表 | 存放 |
 | --- | --- |
 | `trigger` | 每个 Trigger 及其统一格式的时间戳（按文本比较，保证时间序稳定） |
 | `disposition` | 每个 Trigger 的去向：被过滤及理由、其 Eval 与决策、抵达的工单、是否被重排、交还的工单及理由、已被确认或答复的工单 |
-| `trigger_thread` | Trigger 与 Thread 的多对多关系及时间/人写标记（时间相同不漏读） |
+| `trigger_thread` | **唯一的关系型表**：Trigger 与 Thread 的多对多关系（`PRIMARY KEY (thread, id)`），带 `at` 与 `human` 标记，因此时间相同的 Trigger 也不会漏读 |
 | `thread` | 订阅、仅作上下文关注的工单、排队 Trigger、进行中的 Eval、过期计数与 `meta`；生成列 `active`/`subscribed` |
 | `ticket` | Mandate、来源、执行信息、派工、渠道、输入、关注的线程；生成列 `open`/`active` |
-| `decision` | 按线程组织的决策 |
-| `effect` | 副作用队列：按 kind+key 唯一，负载、顺序、失败次数、到期时间 |
+| `decision` | 按线程组织的决策（附 `thread` 列，便于按线程查询） |
+| `effect` | 副作用队列：`PRIMARY KEY (kind, key)`，含负载、序号、代次、失败次数与最后一次错误、到期时间 |
 | `outbox` | 每条渠道消息的回执：`pending`/`sent`/`dropped`，丢弃时记录时间与原因 |
 | `kv` | 其余所有键值记录 |
+
+**这是一个"JSON 文档 + 生成列 + 少量关系表"的混合模型**：聚合本身以整块 JSON 存在 `value` 列，查询靠 `json_extract` 派生的生成列（`ticket.open = value->'$.ended' IS NULL` 等）加部分索引（`trigger(at)`、`trigger_thread(thread, at)`、`decision(thread)`、`effect(kind, due, seq)`）。好处是聚合结构演进不必做 DDL；代价是复杂查询全部落在 `json_each` 上。每次打开数据库时，`addColumns()` 会核对生成列的定义并重建索引，使**旧库自动获得新列**。
 
 生成列（`active`、`subscribed`、`open`、`dropped`）由行内 JSON 计算并带索引，因此"每一趟"只扫描活跃工作。
 
@@ -561,7 +563,22 @@ Engine
 
 ### 9.7 前端实现说明
 
-面板基于 React 18，但**刻意不依赖 `@deepseek-ai/dsh-client-ui-primitives`**，而是在 `src/client/controls.tsx` 中**自建了一套控件副本**，理由是"跟随宿主标记、键盘行为与设计令牌"。这是"插件不能假设宿主 UI 库存在"这一约束的务实应对，但也是显著的维护成本。
+面板基于 React 18，但**刻意不依赖 `@deepseek-ai/dsh-client-ui-primitives`**，而是在 `src/client/controls.tsx`（250 行，自建 `Icon`/`Button`/`Tag`/`SegmentedTabs`/`Switch`/`Modal`/`InfoTip` 等 14 个控件）中**自建了一套控件副本**，理由是"跟随宿主标记、键盘行为与设计令牌"。路由同样是手写的类型化路由器（`src/client/route.ts`，6 个 Tab、5 个设置分组，路由记忆存在 `sessionStorage`，上限 20 条），状态由 `provider.tsx` 每 **5 秒**轮询一次管理 API 得出。样式是唯一一份手写样式表 `src/client/client.css`（382 行）。
+
+### 9.8 源码核对得出的实现要点
+
+以下结论均已逐条对照 `src/` 与 `tests/` 源码确认（而非仅转述文档）：
+
+- **持久化模型**：见 9.3（`node:sqlite` + JSON 文档 + 生成列 + `trigger_thread` 关系表，WAL + `synchronous=FULL`）。
+- **服务脚本是 Python，不是 Node**：`scripts/dsh-superagent`（250 行，`#!/usr/bin/env python3`，可执行位 100755）用 `fcntl.flock` 串行化控制操作、用 `urllib` 轮询 `GET /orchestrator/api/state`、保留最近 20 份日志，并识别"人工停止"标记以避免自动恢复把它拉起。
+- **错误与理由是"带码表"的固定集合**：`src/core/errors.ts` 定义 **44 个 `USER_ERRORS` 码**（`missing`/`refused` 两类，映射到 404/400），`src/core/reasons.ts` 定义 **18 个 `REASONS` 码**，面板按 `reason.<code>` 本地化显示——错误与理由因此可以在 UI、日志与模型之间保持一致。
+- **关键常量**：评估上下文 `TRIGGER_CHARS=4000`、邻近消息 `NEAR_CHARS=1200`、窗口消息 `WINDOW_CHARS=400`、占位桩 `STUB_CHARS=50`；消息上限 `IM_WORDS=100`、路由说明 `NOTE_WORDS=30`；`maxWorkers` 取值 1–16（默认 3）；评估超时 30–600 秒；订阅线程轮询窗口 `POLL_HORIZON_MS=14 天`；评估连续超时重排次数 `REQUEUES=2`（第三次记为 `unavailable`）；准备命令超时 10 分钟、后台工作上限 30 分钟、瞬时故障重试 3 次。
+- **配置是"分块 + 乐观并发 + 版本化"**：`src/app/settings.ts` 以 `policy`/`eval`/`executor`/`source:*` 等块为单位保存，携带 `revision` 防止并发覆盖；`src/app/versions.ts` 把设置与提示词保存为带编号的不可变快照；`src/app/settings-history.ts` 计算相邻版本之间的结构化差异，直接驱动面板的历史视图。
+- **迁移是单向的**：当前 `SCHEMA_VERSION = 11`，只接受 10 → 11 的一次性迁移，更旧的库直接拒绝启动。
+- **体量最大的三个文件**：`src/client/locales.ts`（770 行，全仓库最长，中英文案字典）、`src/executor/dsh.ts`（673 行）、`src/app/migration.ts`（616 行）。核心域（`src/core/`）单文件均不超过 423 行。
+- **打包清单有两处值得注意的疏漏**（属于原型阶段的收尾欠缺）：
+  1. `package.json` 的 `files` 未包含 `scripts/`，因此 `dsh-superagent` 服务脚本**不会**被打进 npm 包；
+  2. `src/client/index.tsx` 引用了 `@deepseek-ai/dsh-client-ui-plugin-manager` 的类型，但它**只是 devDependency**——构建期能解析，消费方环境不保证存在。
 
 ---
 
@@ -569,18 +586,22 @@ Engine
 
 ### 10.1 测试
 
-- 框架：**Vitest 4.1.8**（`vitest run`），React 组件测试用 jsdom。
-- 规模：**65 个测试文件、14,960 行**，与生产代码约 1:1。
+- 框架：**Vitest 4.1.8**（`vitest run`），无全局环境；12 个 `.tsx` 用例文件在首行用 `// @vitest-environment jsdom` 逐个开启 jsdom。
+- 规模：**59 个 spec 文件 + 6 个 fixture 文件，共 14,960 行**（fixture 合计 915 行，其中假管理 API 服务器 480 行、假 DSH 宿主 299 行），与生产代码约 1:1；按 `it(`/`test(` 统计约 **794 个用例**、72 个 `describe` 块。
+- **没有使用 `@testing-library`**：面板测试直接用 `react-dom/client` 的 `createRoot` 挂载到手工创建的 div，用 `react` 的 `act()` 驱动，再以 `document.querySelector` 与 `.dt-*` 类选择器断言 DOM——依赖更少，但对测试写法的要求更细。
 - `pnpm check` = `tsc --noEmit` + `vitest run` + `tsdown` 构建，三者串成唯一的验收入口。
-- 覆盖面（据 `docs/007-architecture.md` 的测试表）：
-  - `core-engine.spec.ts` —— 域规则在内存仓储上的完整行为（接收、评估、扇出、恢复、停止、被中断的派工、暂停、策略变更、汇报、挂接、回复、投递失败）；
-  - `runtime.spec.ts` —— 在**模拟的 DSH 宿主**上跑整个应用；
-  - `runtime-concurrency.spec.ts` —— 并发场景；
+- 覆盖面（据 `docs/007-architecture.md` 的测试表与实际文件规模核对）：
+  - `core-engine.spec.ts`（1,621 行 / 113 个用例）—— 域规则在内存仓储上的完整行为（接收、评估、扇出、恢复、停止、被中断的派工、暂停、策略变更、汇报、挂接、回复、投递失败）；
+  - `runtime.spec.ts`（1,796 行 / 91 个用例）—— 在**模拟的 DSH 宿主**上跑整个应用；
+  - `sources.spec.ts`（1,407 行 / 71 个用例）—— GitHub 与飞书两个来源的翻译、轮询与读取位置；
+  - `runtime-concurrency.spec.ts`（943 行 / 56 个用例）—— 并发场景；
+  - `policy.spec.ts`（486 行 / 40 个用例）、`tools.spec.ts`（491 行 / 26 个用例）、`migration.spec.ts`（539 行 / 19 个用例）等；
   - `docs.spec.ts` —— **强制编号文档只链接更早的文档、所有本地链接可解析、且本文件（007）的模块表与测试表必须列全每个模块和每个测试**；
   - `class-docs.spec.ts` —— **强制 `src` 中每个类前都有 JSDoc 块**；
   - `model-surface.spec.ts` —— 校验模型可见面（工具、提示词、技能、输入）与工具 schema、执行环境、术语表一致，并**按角色控制体积预算**；
   - `cards.spec.ts` —— 校验内置提示词文本必须陈述的规则，逐文件核对；
   - `store.spec.ts` —— 要求所有 kv 键**只在 `src/kv.ts` 中字面出现**；
+  - `service-script.spec.ts`（234 行）—— 用假的 `ps`/`tmux`/`dsh` 测试那个 **Python** 服务脚本；
   - `panel-*.spec.tsx` —— 每个面板页面对着一个按路由应答的假管理 API 测试。
 
 > **结论**：这个项目把"文档/注释/提示词/模型可见面"都当作**可测试的一等公民**，用测试防止它们腐化。这是超出一般内部原型水准的做法。
@@ -617,7 +638,7 @@ Engine
 ## 11. 亮点总结
 
 1. **把"人类注意力"作为统一度量单位**，并据此贯穿到提示词、面板、文档与消息策略——这是本项目区别于普通"自动写代码机器人"的第一性设计。
-2. **12 个领域概念 + 17 条"被拒绝的概念"**，把设计取舍显式沉淀为可复用资产；单线程多工单、订阅不查发送者等规则，都是踩过坑才会写下的结论。
+2. **11 个领域概念 + 12 条"被拒绝的概念"**，把设计取舍显式沉淀为可复用资产；单线程多工单、订阅不查发送者等规则，都是踩过坑才会写下的结论。
 3. **授权与上下文彻底分离**：订阅扇出不提权；Mandate 不可变；恢复前按当前策略重新校验；"人停止"与"策略不再支持"是仅有的两种撤回途径。
 4. **`observe` 接单模式**提供了"先观察再授权"的安全落地路径，可回溯、可审计。
 5. **决定与执行解耦**：Effects 持久化队列 + Outbox 回执 + 幂等发送，使"决定"可重放、"消息"不重复、"崩溃"可恢复。
@@ -632,7 +653,7 @@ Engine
 | 维度 | 现状 | 风险 |
 | --- | --- | --- |
 | 成熟度 | 单次提交、无 Release、Issue/PR 关闭、版本 `0.1.0` 且 `private: true` | **无版本演进史可参考**，生产可用性无从判断 |
-| 依赖 | 30+ 个 `@deepseek-ai/dsh-*` alpha 内部包，DSH 引擎约束为 `^0.2.1-alpha.2` | **无法脱离 DeepSeek 内部环境独立运行**；alpha API 存在破坏性变更风险 |
+| 依赖 | 23 个 peer 依赖，其中 21 个为 `@deepseek-ai/dsh-*` alpha 内部包；DSH 引擎约束为 `^0.2.1-alpha.2` | **无法脱离 DeepSeek 内部环境独立运行**；alpha API 存在破坏性变更风险 |
 | 安全边界 | 执行器以 `danger-full-access` + 运维方 OS 用户运行；文档自述包装脚本"不是安全边界" | 提示词注入若绕过工具校验，**后果等同本机任意代码执行**；建议专用 OS 账号 + 独立容器 |
 | 数据增长 | 文档明确"目前没有任何东西会删除旧记录" | 长期运行的 SQLite 会无界增长，需自建归档 |
 | 数据库演进 | `SCHEMA_VERSION` 只增不减，新版迁移后旧版无法打开 | 回滚必须依赖备份，升级窗口需谨慎 |
@@ -640,6 +661,7 @@ Engine
 | 观测 | 仓库关闭了 Issue 与 PR 功能 | 社区反馈与协作渠道缺失，问题只能靠自建渠道 |
 | 状态保持 | 部分缓存只在进程生命周期内有效（如飞书链接解析后才可被搜索命中） | 重启后部分检索能力短暂退化 |
 | 智能体生成痕迹 | README 自述大量工程由编码智能体完成、风格可能不一致 | 需要更高强度的人工评审 |
+| 工程收尾 | `package.json` 的 `files` 未包含 `scripts/`（服务脚本不会打进包）；`src/client/index.tsx` 引用的 `@deepseek-ai/dsh-client-ui-plugin-manager` 只是 devDependency | 消费方安装后可能出现缺失文件或缺失依赖；反映原型阶段缺少发布前的打包自检 |
 | 与内部/文章的关系 | 公开版本 ≠ 内部版本 ≠ 文章描述 | **不能据此推断 DeepSeek 的实际生产架构** |
 
 ## 13. 对本团队的启示与可借鉴项
@@ -678,7 +700,7 @@ Engine
 2. **一套把授权、上下文、恢复、审计串起来的规则**，尤其是"Mandate 不可变 + 恢复前重校验 + 订阅不提权"这三条；
 3. **一套把"少打扰人"落到提示词、面板、消息与运维脚本上的做法**，包括 `observe` 模式、有界评估上下文、100 词消息上限与退出码语义化的巡检。
 
-其工程水准在"文档与提示词即一等公民"这一点上明显高于一般内部原型；但作为**产品**它尚处研究原型阶段：单次提交、无发布版本、依赖 30 余个 alpha 内部包、默认权限过宽、数据无清理、schema 单向演进。
+其工程水准在"文档与提示词即一等公民"这一点上明显高于一般内部原型；但作为**产品**它尚处研究原型阶段：单次提交、无发布版本、依赖 21 个 `@deepseek-ai/dsh-*` alpha 内部包、默认权限过宽、数据无清理、schema 单向演进。
 
 **给我们的行动建议**：把第 13 节的"可直接借鉴"6 条与"需改造"5 条抽出来，做一轮内部设计评审（预计 1 次会议 + 1 周验证）；同时**不要**把该仓库当作可直接部署的产品引入，其定位应是**架构参考实现**，其中最值得抄的是领域模型与授权规则，而不是它的部署形态。
 
