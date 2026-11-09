@@ -18,6 +18,8 @@
 4. **副作用先落库再执行**（Effects 队列 + Outbox 回执），使"决定"与"做"解耦，崩溃后可恢复、重启不丢单。
 5. **文档即架构**：9 篇编号文档按序阅读即可建立完整心智模型，`tests/docs.spec.ts` 用测试强制"文档表必须列全每个模块与测试"。
 
+**实际使用情况（详见第 13 章）**：真正在生产连续运行的是 **DeepSeek 内部的 Super-agent 实例**（日常复现并修复问题、响应代码评审、迭代 Harness 自身），公开仓库只是"验证技术路径的插件"；对外则是 21,550 星 / 2,580 fork 的高关注度原型，衍生出会话级、Windows 适配版、多通道版、面板内嵌版等十余个项目，社区的真实用法主线是"**接自己的系统**（Redmine/Gerrit/GitLab/企业微信/Telegram…）+ 补平台缺口"。官方自己做的消融实验显示：两层架构的任务完成时间 p50/p95 为 **12.4/15.7 分钟**，明显优于单会话方案的 20.4/29.5 分钟，代价是 token 消耗约为其 3.8 倍。
+
 **风险提示**：仓库 README 明确声明这是"仅供参考的研究原型，非 DeepSeek 官方产品"，且运行需要 23 个 peer 依赖（其中 21 个是 `@deepseek-ai/dsh-*` alpha 内部包），**当前不具备脱离 DeepSeek 内部环境独立部署的条件**。
 
 ---
@@ -35,7 +37,7 @@
 | 默认分支 | `main` |
 | 创建时间 | 2026-10-31 |
 | 最后推送 | 2026-11-03 |
-| Star / Fork / Watch | 21,547 / 2,580 / 164 |
+| Star / Fork / Watch | 21,550 / 2,580 / 164（2026-11-09 快照，持续增长） |
 | 提交数 | **1**（`8c32a9d`） |
 | Release | **无** |
 | Issue / PR | 仓库**已关闭** Issue 与 PR 功能（`has_issues: false`，`has_pull_requests: false`） |
@@ -75,6 +77,8 @@
 > 仓库为发布做了适配，因此它**与内部版本、以及文章《Exploring Super-agent Design: Towards a More Autonomous Agent System》中描述的实现并不相同**；文章讨论的部分设计是未来演进方向，并未在此原型中实现。
 
 这三点对评估非常关键：**（a）** 代码风格由智能体参与生成，评审门槛应当上调；**（b）** 公开版本 ≠ 内部版本，也 ≠ 论文/文章中的完整设计，**不应把该仓库当作"DeepSeek 超级智能体方案"的权威全文**；**（c）** 原型形态缺少工程收尾（无 Release、Issue 关闭、单次提交）。
+
+> 那篇被 README 反复提及的文章（中文原名《探索超级智能体设计：迈向更自主的 Agent 系统》）已于 2026-11-09 找到并纳入本报告第 13 章，其中包含官方自己的架构设想、量化实验与"文章设想 ↔ 原型实现"的逐项对照。
 
 ---
 
@@ -663,8 +667,167 @@ Engine
 | 智能体生成痕迹 | README 自述大量工程由编码智能体完成、风格可能不一致 | 需要更高强度的人工评审 |
 | 工程收尾 | `package.json` 的 `files` 未包含 `scripts/`（服务脚本不会打进包）；`src/client/index.tsx` 引用的 `@deepseek-ai/dsh-client-ui-plugin-manager` 只是 devDependency | 消费方安装后可能出现缺失文件或缺失依赖；反映原型阶段缺少发布前的打包自检 |
 | 与内部/文章的关系 | 公开版本 ≠ 内部版本 ≠ 文章描述 | **不能据此推断 DeepSeek 的实际生产架构** |
+| 使用规模的真实量级 | 公开原型在社区热度高（21,550 星 / 2,580 fork），但**可核验的公开运行轨迹以个人试验、连通性测试与二次开发为主**；真正的连续生产运行发生在 DeepSeek 内部（不公开） | **高星 ≠ 高留存**：把它当"已被大规模验证的产品"会误判；其公开价值更接近"架构参考实现 + 生态起点" |
+| 文档与代码的差距 | 公开原型只实现了文章九个模块中的一部分：云化与 BYOM、模型级看门狗、显式引用图式链式召回均未落地 | 按文章标题理解预期会高估其现成能力 |
 
-## 13. 对本团队的启示与可借鉴项
+## 13. 实际使用情况与真实作用
+
+> 本章回答"它实际是怎么被用的、能做哪些事"。证据分三层：①官方文章披露的内部真实用法；②GitHub 上可核验的公开运行轨迹与衍生改造；③第三方社区的复现与解读。所有外部链接均于 2026-11-09 采集。
+
+### 13.1 官方内部：它已经连续运行在做什么
+
+公开原型只是这套系统的"验证技术路径的插件"，**真正在生产里跑的是 DeepSeek 内部的 Super-agent 实例**。文章《探索超级智能体设计：迈向更自主的 Agent 系统》（中文首发于 DeepSeek Harness 团队微信公众号 2026-10-31，与开源原型同日发布；英文译本见 [p2lab scratchpad](https://ghost.p2lab.com/exploring-super-agent-design/)，[原文](https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg)，[ChainCatcher 转载](https://www.chaincatcher.com/article/2300676)）披露了几条具体用法：
+
+- **内部实例已"连续运行"**，日常参与三件事：**复现并修复问题、响应代码评审、迭代 DeepSeek Harness 自身**（文章第 9 节原文："is already running continuously and takes part daily in reproducing and fixing issues, responding to code reviews, and iterating on DeepSeek Harness itself"）。
+- **一个开发任务在 IM 与 GitHub 之间连续流转**：先在群里讨论方案 A，再在 PR 评论里改成方案 B，智能体理解并改道（第 1 节 "Continuous" 的图 1）。
+- **无人 @ 也主动干活**：持续盯着一个公开群聊，**在没有 @ 提及的情况下主动定位根因并开出修复 PR**（图 2）。
+- **"静默复现并修复"策略**（第 3.4 节）：在内部 DSH 用户群里配置一条策略——有人报问题或讨论改动时，智能体**先在后台复现并寻找修复，只有确认了问题且找到简单修复才交付结果，否则全程沉默**；这是"推测执行"（speculative execution）的落地形态，图 9 显示群友还在讨论方案时，修复 PR 已经开好。
+- 文章作者为 **Yujia Qiao**（系统构建者与作者），另有十余位同事参与评审与讨论。
+
+**边界必须说清**：文章开篇即声明"这是对工程实践中新架构想法的探索，不是对现有 DeepSeek Harness 产品功能的描述"；README 也声明公开版"与内部版本、也与文章中描述的实现并不相同，文章讨论的部分设计是未来方向、并未实现"。**因此不能把公开原型当成 DeepSeek 内部生产系统的样子。**
+
+### 13.2 文章架构 ↔ 开源原型：实现了什么，差在哪
+
+| 文章中的模块 | 文章的设想 | 开源原型的实现 | 判断 |
+| --- | --- | --- | --- |
+| 两层架构（§2） | 常驻 Router 层只做交互与调度，甚至可以不拥有 Bash；Worker 层隔离上下文、并发执行 | `dsh-superagent-router` / `dsh-superagent-worker` 两个预设；一 Ticket 一 Session、一目录 | **已实现**（单机本地形态） |
+| 事件驱动（§3） | 环境事件成为 Trigger，取代人逐条下指令 | Source 轮询 → Trigger → Eval → Ticket | **已实现** |
+| 两级过滤（§3.1） | 程序策略做 fast path 去噪，模型策略做 slow path 判断 | Policy 的 gate（名单、准入表、机器人名单）+ `MasterAssessor` 研判 | **已实现** |
+| 订阅直达（§3.2） | follow-up 事件由代码直接投给已订阅的 Worker，不经 Router | Subscription 扇出绕过 Eval、**且不授予新权限** | **已实现** |
+| Inline & Spill、记忆链（§3.3） | 上下文按需展开，引用图上"链式召回" | 有界评估上下文（Trigger ≤4000 字符、邻近 ≤1200、桩 ≤50）+ `orchestrator_read` 逐层展开 | **部分实现**：有"摘要 + 按需展开"，未见显式的引用图与链式召回 |
+| 推测执行（§3.4） | 后台先做，有价值才交付 | 主动规则 + `auto`/`observe` 模式可表达"静默复现并修复" | **机制具备**，内部策略未公开 |
+| 异步全双工（§4.1） | `start()`/`stop()` 异步 ReAct，前台不被后台阻塞 | 超过 5 秒的前台命令转后台作业、`noWait` 守卫拒绝长等待 | **部分实现**：DSH 侧的异步任务机制"已实现但默认未开启"（文章原话） |
+| 计算/状态/环境分离（§5） | 云端无状态计算 + 状态库 + 设备侧轻量守护进程（BYOM），跨设备在线 | 全部在本机：`stateDir`、tmux、本地 git worktree | **未实现**：公开原型是**单机本地版**，云化与 BYOM 属于文章方向 |
+| 看门狗（§6） | 独立的模型驱动控制回路，判断 worker 是否真在推进、方向是否漂移 | `scripts/dsh-superagent status` + 每小时巡检提示词（按退出码分支） | **形态不同**：脚本级探活 + 重启，**没有模型级的"进度判断"** |
+
+这张表说明了一件事：**公开原型是这套架构的"最小可验证切片"**——路由、授权、事件、订阅、执行、交付都在；云化、跨设备、模型级看门狗都不在。
+
+### 13.3 公开社区的真实运行轨迹（可核验）
+
+在 GitHub 上能直接看到智能体在别人仓库里的实际行为：
+
+| 仓库 | 触发方式 | 实际发生的事 |
+| --- | --- | --- |
+| [`wulw-1212/dome-sa`](https://github.com/wulw-1212/dome-sa/issues/8) | 多轮 `@wulw-1212-agent` | 连续做了儿童故事站（含中英对照与拼音）、日出短诗、老虎绘图页（四个时段、四种姿态、PNG 导出）、"猎人抓鸟" HTML5 游戏（连招、有限子弹、鸟方躲弹幕采浆果），并在其上追加"单词模式"（一到四年级、每级 10 词配图、逐级解锁、一轮共 40 词、单词卡自动朗读后才可发射下一发） |
+| [`zizx/ShortVideoMaker`](https://github.com/zizx/ShortVideoMaker/issues/1) | 一次性连通性测试 | 要求"只新增一个含单行文本的文件并开 PR" → 智能体**严格照办**，交付 PR #4，并在两条消息里都带 `This is by an automated agent, not a human.` |
+| [`lhysjsn/dsh-superagent-test`](https://github.com/lhysjsn/dsh-superagent-test/issues/1) | 改 README 标题 | 确认一次 → 交付 PR #2 → 结尾"需要你合并" |
+
+从这些真实轨迹能读出**协议确实被执行**：
+
+1. **每个请求只确认一次**（"On it: ..."），工作期间保持沉默；
+2. **结果消息带 PR 链接与可操作说明**（怎么打开、看哪个文件、是否需要 CI），例如"没有配置 CI，需要你合并"；
+3. **不自己合并 PR**，把合并权留给人类；
+4. **沟通语言跟随对话语言**：同一线程里用户改用中文后，智能体也改用中文回复；
+5. **每条消息带 `<!-- dsh-superagent:<uuid> -->` 标记**，用于消息幂等与去重；
+6. **出错会主动告知并自修**：`dome-sa` 的轨迹里，智能体发现 PR 分支上出现误提交（会连带删掉 7 个已合并页面），**用一次 revert 修好**并主动汇报"现在是 +2308/-0，仍需你合并；若那次删除是你想要的，请说一声"。
+
+### 13.4 衍生与生态：外面已经长出了什么
+
+公开仓库之外，社区把它当底座做了大量二次开发。**主线不是"部署原版"，而是"接自己的系统 + 补平台缺口"**：
+
+| 衍生项目 | Star | 改了什么 |
+| --- | ---: | --- |
+| [`MYCF711/dsh-session-superagent`](https://github.com/MYCF711/dsh-session-superagent) | 38 | 会话级 superagent：盯一个 GitHub 仓库，有变化就唤醒会话；**凭证不进模型，返回统一脱敏** |
+| [`saltapp/dsh-superagent-prototype-cn`](https://github.com/saltapp/dsh-superagent-prototype-cn) | 20 | 中文文档版 |
+| [`pprp/multi-superagent`](https://github.com/pprp/multi-superagent) | 11 | 多项目版：每个项目一个独立 DSH profile |
+| [`Check-mj/dsh-superagent-windows`](https://github.com/Check-mj/dsh-superagent-windows) | 9 | Windows 深度适配（非官方）：GitHub/飞书事件 → 隔离会话执行 → 回贴；桌面应用、多实例、Watchdog、Router 分片、一键安装 |
+| [`mengzhongjie/dsh-superagent-local`](https://github.com/mengzhongjie/dsh-superagent-local) | 9 | 本地改造版：每个工作区一个主会话，需求来自本机操作者而非 GitHub/飞书 |
+| [`deepseekv41flash/dsh-superagent-panel`](https://github.com/deepseekv41flash/dsh-superagent-panel) | 5 | 把完整管理面板**内嵌进 DSH NEXT**（同源反向代理 iframe、打开主 Session、服务启停重启）+ 配套 bridge |
+| [`hustnn/dsh-superagent-ui`](https://github.com/hustnn/dsh-superagent-ui) | 4 | 独立 UI |
+| [`ruijh/dsh-superagent-prototype-analysis`](https://github.com/ruijh/dsh-superagent-prototype-analysis) | 3 | 49 张图的架构可视化分析 |
+| [`aicodeking/dsh-superagent-gui`](https://github.com/aicodeking/dsh-superagent-gui) | 2 | 面向任意文件夹的本地 GUI，**合并前人工评审** |
+| [`baojingyu/dsh-superagent-channels`](https://github.com/baojingyu/dsh-superagent-channels) | 2 | 多通道版：**GitLab、云效 Projex、微信、钉钉、企业微信**来源，每通道多实例 |
+
+三个**深度改造**的 fork 尤其能说明真实需求：
+
+- **[`Dengguiling/dsh-superagent-prototype`](https://github.com/Dengguiling/dsh-superagent-prototype)**（2.2 MB，远超上游 37 KB）：做了一轮**完整代码评审并逐层修复**（sources / core / app / executor / panel / docs），新增 **Redmine（工单系统）与 Gerrit（代码评审系统）** 两个来源，用"**关系准入**"取代发送者名单（凡是指派给智能体、@ 到它、或在它自己的改动下评论，一律视为明确请求），把面板重构成"**工作台 + 流水线**"（任务状态：待分析/未处理/分析中/等你处理/已完成），并补上 CI。
+- **[`vishal73/dsh-superagent-prototype`](https://github.com/vishal73/dsh-superagent-prototype)**：新增 **Telegram** 来源；做了 **Windows 原生适配**，逐个修掉真实踩到的坑（`stateDir` 不接受盘符路径、worker shim 是 `#!/bin/sh` 而 Windows 无法按命令名解析、Windows 没有 `env`、DSH 在 Windows 注册的是 `pwsh` 而提示词工具白名单里写死 `bash` 导致启动失败）；另加 agent-browser 技能、`/new` 开新会话、按角色切换模型；提交信息自述"pnpm check: 58 files / 1156 tests pass"。
+- **[`etveritas/dsh-superagent-prototype`](https://github.com/etveritas/dsh-superagent-prototype)**：接入**企业微信与 GitLab** 来源，并补齐 `AGENTS.md`、`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、中文 README 等项目治理文件。
+
+生态层面的信号：
+
+- **DSH 插件市场已收录相关条目**（`dsh-pluginmarket/metadata` 的收录 issue 中可见 `jwangkun/dsh-superagent`）；
+- **`awesome-DSH-plugin` 生态收录**了 `dsh-superagent-win-startstop` 等衍生插件；
+- **第三方解读与教程**已出现：Apidog 的《How to Build a Super-Agent Like DeepSeek's: Router, Workers and Triggers Explained》、aiezz 的上手教程、[penglei.dev 的中文简明指南](https://penglei.dev/blog/2026-11-02-deepseek-dsh-superagent-github-setup/)、eneralabs 的企业视角解读、note.com 与 datastudios.org 的解读、DeepWiki 自动生成的仓库 wiki，以及一本把 "persistent bots" 写成一章的公开电子书。
+
+> **一个可核验的规模对比**：原型仓库 **21,550 星 / 2,580 fork**，而承载它的 **DeepSeek Harness 主仓库有 277,062 星 / 33,954 fork**；npm 上 `@deepseek-ai/dsh` 近 30 天下载 **2,418,423** 次、近 7 天 **826,548** 次（2026-11-08 快照），已发布 42 个版本、当前最新 `0.2.2-rc.1`。**平台本身的采用度远高于这个原型插件。**
+
+### 13.5 量化：官方自己测出来的效果
+
+文章第 7 节做了两组实验（**合成负载，约 300 条消息、其中约 20 个真实请求，每种配置跑 5 次，编码工作替换为只消耗时间的工具，因此测的是调度与协同、不是编码能力**）：
+
+**7.1 消融实验：两层架构 vs 单会话**
+
+| 配置 | 任务完成时间 p50 / p95（分钟） | 每次运行的 cache-read token |
+| --- | --- | --- |
+| **Super-agent** | **12.4 / 15.7** | 23.23 M |
+| Super-agent，去掉"订阅直达" | 12.6 / 15.5 | 31.77 M |
+| 单会话 + 子智能体工具，中性提示词 | 20.4 / 29.5 | 6.05 M |
+| 单会话 + 子智能体工具，"优先委派"提示词 | 13.8 / 29.0 | 10.82 M |
+
+关键结论：
+
+- 中性提示词下，模型 **5 次运行里一次都没调用子智能体**，全部工作挤在主会话里被新消息不断打断，p95 达 29.5 分钟；改成"优先委派"后 4/5 次会委派，但整体仍慢于 Super-agent，且剩下那次它判断"这活很小"自己做了——形成长尾。
+- **架构层面的分工（Router 不做具体工作、Worker 只收自己订阅的消息）比提示词层面的引导更稳定**。
+- 去掉"订阅直达"对完成时间几乎无影响，但 **Router 的决策次数多约 30%，token 消耗上升约 37%**（23.23M → 31.77M）——即直达省的是 Router 的算力。
+- 代价也很直白：**多会话带来的 token 开销高于单会话**（23.23M vs 6.05M），是用成本换完成时间与稳定性。
+
+**7.2 Router 层批处理压力测试**（真实模型 + mock worker，触发到达率从约 1/分钟升到约 40/分钟）：
+
+| 指标 | 约 1 次/分钟 | 约 40 次/分钟 |
+| --- | --- | --- |
+| 平均批大小 | 1.0 | 2.8 |
+| 单请求延迟 | 2.5 秒 | 3.9 秒 |
+| **每次决策摊薄的推理时间** | **6.4 秒** | **1.6 秒** |
+
+即事件洪峰时，Router 会把积压的 Trigger 合并成一次推理，**吞吐随批量摊薄成本下降**；文章据此判断在当前团队规模下还不需要分片 Router。
+
+### 13.6 它实际能做的事（作用清单）与做不到的事
+
+**能做（均已在公开原型或真实运行轨迹中验证）**
+
+1. **接单并真干活**：在 GitHub Issue/PR/评论或飞书群里 @ 它，就开一张工单，在独立 Session 与独立目录里执行，最后交回 PR。
+2. **跨渠道连续推进同一件事**：群里讨论的方案与 PR 里的改动是同一张工单的两个视图（订阅直达 + 上下文续接）。
+3. **把请求变成可评审的交付物**：PR 里带问题背景、变更说明与验证结果，并按项目约定标注"这是自动化智能体"。
+4. **处理评审与后续**：PR 上的评审意见、CI 结果、新的追问会直达对应 Worker；已修复的评审线程可静默解决，不采纳的建议给一句话理由。
+5. **按团队写下的规则主动干活**：`observe` 模式先"只记录不执行"验证判断力，确认可靠后切 `auto`；内部还有"静默复现并修复"这类策略。
+6. **人在回路的监督**：Web 面板上可以暂停处理、重试工单、停止工单、把某条触发重新送评估、直接追问 Worker。
+7. **运维自愈**：常驻脚本 + 每小时巡检提示词按退出码分支（2/3 不重启、1 才重启且尊重人工停止标记）。
+8. **当通用底座**：按 11 步配方接一个新系统（工单系统、代码评审、IM、云效、企业微信……），授权/订阅/恢复/审计自动继承。
+
+**做不到 / 不该指望**
+
+- **不会替你合并 PR**（自动合并默认禁用，且作者把合并权视为人的责任）。
+- **不会替你制造产量**：批量 PR、广播消息被明确反对。
+- **不能脱离 DeepSeek Harness 独立运行**（23 个 peer 依赖，其中 21 个是 alpha 内部包）。
+- **不能跨设备、不能云化**（文章 §5 的 BYOM 与计算/状态分离未实现）。
+- **智能体之间不会直接协作**（A2A 是文章公开的未解决问题）。
+- **安全边界很薄**：执行器默认 `danger-full-access`、以运维方 OS 用户身份运行，文档自己说"包装脚本与目录只是默认值，不是安全边界"；文章 §8.4 也把安全与隐私列为未解决问题，并直言"除非安全与隐私被很好地解决，Super-agent 只能在很小、很受信的范围里工作"。
+- **不做长周期记忆**：文章 §8.1 指出 Router 的引用图召回主要解决近期任务，**跨月级的长期记忆才是规模化瓶颈**。
+
+### 13.7 使用门槛与真实成本
+
+| 维度 | 实际要求 |
+| --- | --- |
+| 硬件/常驻 | 一台常开的机器 + 独立的 DSH profile（插件会改进程级 PATH 与 git 配置，需要独立重启与升级） |
+| 账号 | 专用机器人 GitHub 账号（**不能用 GitHub App**，因为要读 notifications）+ 独立凭据的 CLI 包装脚本；可选飞书自建应用 |
+| 权限 | 执行器 `danger-full-access`，**无进程级隔离**，文档唯一建议是"用只放机器人凭据的专用 OS 账号" |
+| 规模 | 原版面向**单个仓库 + 单个实例**；多仓库需多 profile/多实例（社区已有 `multi-superagent`、`dsh-superagent-channels` 等改造） |
+| 模型成本 | Router 与 Worker 可分别指定模型；作者建议 Worker 用最强模型，Router 可以用更轻的模型（文章 §2.1） |
+| 人力成本 | 仍需人合并 PR、回答追问；作者的定位是"人上移到高层决策与结果验收" |
+
+### 13.8 官方自陈的未解决问题
+
+| 文章小节 | 开放问题 |
+| --- | --- |
+| §8.1 | 两层架构如何扩展：Router 何时分片、分片粒度、worker 之间何时直接通信；长期记忆瓶颈 |
+| §8.2 | 会话消失后如何与人协作：交互与项目管理的最终形态（作者认为会高度定制化） |
+| §8.3 | 上下文边界与 A2A：多个互相隔离的实例之间如何安全协作 |
+| §8.4 | 安全与隐私：提示注入、凭据泄露、跨设备信任——**作者明确承认这是"用起来"之前的硬约束** |
+
+---
+
+## 14. 对本团队的启示与可借鉴项
 
 按"可直接借鉴 / 需改造后借鉴 / 不宜照搬"三档给出：
 
@@ -692,7 +855,13 @@ Engine
 3. **前端自建控件副本**（`src/client/controls.tsx`）：在无更优替代时才这么做，我们应尽量复用宿主 UI 库。
 4. **无界的数据增长与单向 schema 演进**：我们应从第一天就设计归档与可回滚的迁移。
 
-## 14. 结论
+**从外部真实用法里读出的三条落地结论**
+
+1. **先接"我们自己的系统"，不要先接 GitHub**。社区里所有有价值的衍生都是这么长出来的：Redmine/Gerrit/GitLab/企业微信/钉钉/云效/Telegram。如果我们的工单在内部系统里，直接把 Source 接到它，比从 GitHub 起步更贴近真实价值；接入成本按官方 11 步配方可控。
+2. **"关系准入"比"名单"更适合企业场景**：`Dengguiling` 的改造把"谁可以派活"从维护名单改成"凡是指派给智能体、@ 到它、或在它自己的改动下评论，一律视为明确请求"，名单只用于管"没直接对它说话"的消息。这与我们"从窄开始"的建议并不冲突，反而是它的企业版。
+3. **平台假设会在真实环境里逐一破产**：`vishal73` 的 Windows 适配踩到的每一个坑（盘符路径校验、`#!/bin/sh` shim、Windows 没有 `env`、DSH 在 Windows 注册的是 `pwsh` 而不是 `bash`）都是"原型假设 POSIX"造成的；**我们的实现如果要在 Windows 上跑，这类问题要提前排掉，而不是等第一个人来 fork 修**。同理，`baojingyu` 补的多通道、`Check-mj` 补的多实例与 Watchdog，说明"单仓库单实例 + 脚本级探活"是最先会被真实需求顶开的两个假设。
+
+## 15. 结论
 
 `dsh-superagent-prototype` 不是一个"功能清单很长"的智能体项目，而是一份**关于"怎样让智能体在团队里长期活下去"的工程答案**。它最有价值的产出不是代码，而是三样东西：
 
@@ -702,7 +871,7 @@ Engine
 
 其工程水准在"文档与提示词即一等公民"这一点上明显高于一般内部原型；但作为**产品**它尚处研究原型阶段：单次提交、无发布版本、依赖 21 个 `@deepseek-ai/dsh-*` alpha 内部包、默认权限过宽、数据无清理、schema 单向演进。
 
-**给我们的行动建议**：把第 13 节的"可直接借鉴"6 条与"需改造"5 条抽出来，做一轮内部设计评审（预计 1 次会议 + 1 周验证）；同时**不要**把该仓库当作可直接部署的产品引入，其定位应是**架构参考实现**，其中最值得抄的是领域模型与授权规则，而不是它的部署形态。
+**给我们的行动建议**：把第 14 节的"可直接借鉴"6 条与"需改造"5 条抽出来，做一轮内部设计评审（预计 1 次会议 + 1 周验证）；同时**不要**把该仓库当作可直接部署的产品引入，其定位应是**架构参考实现**，其中最值得抄的是领域模型与授权规则，而不是它的部署形态。第 13 章的外部证据也支持这个判断：公开生态里的用法几乎都是"接自己的系统 + 补平台缺口"，而不是"部署原版"。
 
 ---
 
@@ -718,14 +887,28 @@ Engine
 | `prompts/*.md`（15 个）、`skills/*/SKILL.md`（2 个） | 提示词与技能的组织方式 |
 | `src/**`（111 文件）、`tests/**`（65 文件） | 架构与实现核对 |
 | GitHub REST API（`repos/deepseek-ai/dsh-superagent-prototype`） | Star/Fork/Watch、创建与推送时间、语言构成、Release 列表、提交数、Issues/PR 开关 |
+| GitHub REST API：forks、stargazers、search（repositories/issues/code）、fork 的 commits/contents | 第 13 章的衍生项目清单、真实运行轨迹、生态收录情况 |
+
+**外部来源（第 13 章，均为 2026-11-09 采集）**
+
+| 来源 | 用途 |
+| --- | --- |
+| [《探索超级智能体设计：迈向更自主的 Agent 系统》英文译本](https://ghost.p2lab.com/exploring-super-agent-design/)（[Markdown 版](https://ghost.p2lab.com/exploring-super-agent-design.md)） | 官方架构文章全文：四个属性、五个模块、7.1 消融与 7.2 批处理数据、§8 开放问题 |
+| [微信公众号原文](https://mp.weixin.qq.com/s/zoS7GlReWPhfCjENGxXCdg) / [ChainCatcher 转载](https://www.chaincatcher.com/article/2300676) | 文章中文原始出处（经译本引用核对） |
+| GitHub 搜索结果与各 fork 的 `commits` / `contents` API | 衍生项目改造内容、真实 issue 中的智能体行为 |
+| npm registry 与 downloads API（`@deepseek-ai/dsh`） | 平台级采用度：版本数、发布时间、最近 7/30 天下载量 |
+| [Apidog《How to Build a Super-Agent Like DeepSeek's》](https://apidog.com/blog/how-to-build-a-super-agent/)、[aiezz 上手教程](https://www.aiezz.com/en/tutorial/tutorial-8803622f829c97a8af190357)、[penglei.dev 中文简明指南](https://penglei.dev/blog/2026-11-02-deepseek-dsh-superagent-github-setup/)、[eneralabs 企业视角解读](https://www.eneralabs.com/blog/deepseek-super-agent-proactive-coding-enterprise-2026/)、[note.com 解读](https://note.com/masa_cloud/n/nee8ab04713e0?hl=en)、[datastudios.org 解读](https://www.datastudios.org/post/deepseek-dsh-superagent-mit-proactive-coding-agent-github-feishu)、[DeepWiki 自动 wiki](https://deepwiki.com/deepseek-ai/dsh-superagent-prototype) | 第三方社区的使用与复现情况（用于交叉印证，不作为权威结论） |
 
 **方法与局限**
 
 - 代码行数由 `git show HEAD:<path>` 逐文件计数（规避本地工作区 CRLF 噪声）；因换行边界，个别文件有 ±1 行误差。
-- 仓库元数据为 2026-11-09 的快照，Star/Fork 等数字会持续变化。
+- 仓库元数据、Star/Fork、npm 下载量均为 **2026-11-09 的快照**，这些数字会持续变化。
 - **未执行** `pnpm install` / `pnpm test` / `pnpm build`（无网络安装依赖，且本次交付物为调研报告而非代码变更），因此**未对测试套件的实际通过情况做验证**；文中关于测试规模与覆盖面的描述来自测试文件与文档测试表的交叉核对。
-- **未获取**外部文章《Exploring Super-agent Design: Towards a More Autonomous Agent System》原文（本次环境无可用网络检索工具），因此报告中对该文章只引用 README 的表述，不复述其内容。
-- 调研范围限于**公开仓库**，不含 DeepSeek 内部版本；本报告不对内部实现作任何推断。
+- 官方文章原文为中文，本报告依据其**官方英文译本**（由 p2lab 以 AI 翻译、未经人工校对）引用；译本作者已声明"可能有错误，依赖细节前请核对原文"。文章中的实验数据（第 7 节）均为**合成负载下的初步参考**，作者本人也标注"仅供参考"。
+- 第 13 章列出的外部衍生项目是**公开可见的抽样**（GitHub 搜索 + 最新 100 个 fork 的抽样检查），不代表全部生态；社区项目的星标数同样随时变动。
+- 调研范围限于**公开仓库与公开文章**，不含 DeepSeek 内部实现；关于内部实例的描述**全部转引自官方文章**，本报告未对其做独立验证。
+- 第 13 章中"能做/做不到"的清单基于公开原型代码与真实运行轨迹归纳；除特别标注外，均未在本次调研中实际部署运行该原型。
+
 
 ## 附录 B：关键术语速查
 
